@@ -1,853 +1,775 @@
-"""
-Ollama Chatbot v3.0 - ChatGPT-Inspired Interface
-Professional chatbot with modern UI, chat history, and fun facts ticker
-"""
-
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
-import requests
-import json
-import threading
+from tkinter import ttk, filedialog, messagebox
+import requests, threading, os, pickle, base64
 from datetime import datetime
-import os
-import base64
-from PIL import Image, ImageTk
-import pickle
-import random
 
+# ======================================
+# Chat session model
+# ======================================
 class ChatSession:
-    """Represents a single chat conversation"""
     def __init__(self, name="New Chat", chat_id=None):
         self.id = chat_id or datetime.now().strftime("%Y%m%d_%H%M%S")
         self.name = name
         self.messages = []
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'messages': self.messages,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
-        }
 
-class OllamaChatbotV3:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Ollama AI Assistant v3.0")
-        self.root.geometry("1400x900")
-        self.root.minsize(1200, 800)
+
+# ======================================
+# Avatar Selection Dialog
+# ======================================
+class AvatarSelectionDialog(tk.Toplevel):
+    def __init__(self, parent, current_avatar):
+        super().__init__(parent)
+        self.title("Select Your Avatar")
+        self.geometry("600x300")
+        self.resizable(False, False)
+        self.configure(bg="#2d3748")
         
-        # Modern color scheme (ChatGPT-inspired)
-        self.colors = {
-            'bg_primary': '#ffffff',
-            'bg_secondary': '#f7f7f8',
-            'bg_tertiary': '#ececf1',
-            'sidebar': '#202123',
-            'sidebar_hover': '#2a2b32',
-            'accent': '#10a37f',
-            'accent_hover': '#1a7f64',
-            'text_primary': '#353740',
-            'text_secondary': '#6e6e80',
-            'text_white': '#ffffff',
-            'border': '#d9d9e3',
-            'user_msg': '#f7f7f8',
-            'bot_msg': '#ffffff',
-            'ticker_bg': '#10a37f',
-            'ticker_text': '#ffffff',
-        }
+        self.selected_avatar = current_avatar
         
-        self.root.configure(bg=self.colors['bg_primary'])
+        # Available avatars (emojis that look like round characters)
+        self.avatars = [
+            "👤",  # Default user
+            "🐻",  # Bear (like the image)
+            "🦁",  # Lion
+            "🐯",  # Tiger
+            "🐼",  # Panda
+            "🐨",  # Koala
+            "🐸",  # Frog
+            "🐵",  # Monkey
+            "🦊",  # Fox
+            "🐶",  # Dog
+            "🐱",  # Cat
+            "🐰",  # Rabbit
+        ]
         
-        # Configuration
-        self.ollama_url = "http://localhost:11434/api/chat"
-        self.current_model = tk.StringVar(value="llama2")
-        self.temperature = tk.DoubleVar(value=0.7)
-        self.system_prompt = "You are a helpful AI assistant that can analyze files and images."
-        self.is_generating = False
+        tk.Label(
+            self,
+            text="Select an avatar for your profile image.",
+            bg="#2d3748",
+            fg="white",
+            font=("Segoe UI", 12),
+            pady=20
+        ).pack()
         
-        # Chat history management
+        # Avatar grid
+        avatar_frame = tk.Frame(self, bg="#2d3748")
+        avatar_frame.pack(pady=10)
+        
+        self.avatar_buttons = []
+        for i, avatar in enumerate(self.avatars):
+            btn = tk.Button(
+                avatar_frame,
+                text=avatar,
+                font=("Segoe UI Emoji", 32),
+                width=2,
+                height=1,
+                relief=tk.FLAT,
+                bg="#4a5568" if avatar != current_avatar else "#2563eb",
+                fg="white",
+                cursor="hand2",
+                command=lambda a=avatar: self.select_avatar(a)
+            )
+            btn.grid(row=i // 6, column=i % 6, padx=8, pady=8)
+            self.avatar_buttons.append((btn, avatar))
+        
+        # Buttons
+        btn_frame = tk.Frame(self, bg="#2d3748")
+        btn_frame.pack(pady=20)
+        
+        tk.Button(
+            btn_frame,
+            text="Confirm",
+            command=self.confirm,
+            font=("Segoe UI", 11, "bold"),
+            bg="#2563eb",
+            fg="white",
+            relief=tk.FLAT,
+            cursor="hand2",
+            width=12,
+            height=1
+        ).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(
+            btn_frame,
+            text="Cancel",
+            command=self.cancel,
+            font=("Segoe UI", 11),
+            bg="#6b7280",
+            fg="white",
+            relief=tk.FLAT,
+            cursor="hand2",
+            width=12,
+            height=1
+        ).pack(side=tk.LEFT, padx=5)
+        
+        # Make modal
+        self.transient(parent)
+        self.grab_set()
+        
+    def select_avatar(self, avatar):
+        self.selected_avatar = avatar
+        # Update button colors
+        for btn, av in self.avatar_buttons:
+            if av == avatar:
+                btn.config(bg="#2563eb")
+            else:
+                btn.config(bg="#4a5568")
+    
+    def confirm(self):
+        self.destroy()
+    
+    def cancel(self):
+        self.selected_avatar = None
+        self.destroy()
+
+
+# ======================================
+# Main App
+# ======================================
+class OllamaChatbotBlue(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Ollama AI Assistant v3.6 – Thinking Indicator")
+        self.geometry("1400x900")
+        self.minsize(1200, 800)
+
+        # Session state
         self.chat_sessions = []
         self.current_session = None
         self.sessions_file = "chat_sessions.pkl"
+        self.attached_files, self.attached_images = [], []
+        self.is_generating = False
+        self.system_prompt = "You are a helpful AI assistant."
+        self.ollama_url = "http://localhost:11434/api/chat"
         
-        # File/Image handling
-        self.attached_files = []
-        self.attached_images = []
-        self.current_image_data = None
+        # Avatar settings
+        self.user_avatar = "👤"
+        self.bot_avatar = "🤖"
+        self.settings_file = "app_settings.pkl"
+        self.load_settings()
         
-        # Fun facts - diverse and interesting!
-        self.fun_facts = [
-            "🦈 Sharks have been around longer than trees - about 400 million years!",
-            "🍯 Honey never spoils - archaeologists found 3,000 year old honey that's still edible!",
-            "🌍 There are more stars in the universe than grains of sand on all Earth's beaches!",
-            "🐙 Octopuses have three hearts and blue blood!",
-            "🎵 Music can make plants grow faster according to studies!",
-            "🧠 Your brain uses 20% of your body's energy while being only 2% of your weight!",
-            "🌙 The Moon is moving away from Earth at about 1.5 inches per year!",
-            "💎 Diamonds can be made from peanut butter under extreme pressure!",
-            "🐝 A single bee produces only 1/12 of a teaspoon of honey in its lifetime!",
-            "📚 The world's oldest known library is in Morocco, founded in 859 AD!",
-            "🎨 Leonardo da Vinci could write with one hand and draw with the other simultaneously!",
-            "🌊 Ocean waves can travel thousands of miles without losing energy!",
-            "🦎 Some lizards can detach their tails and grow new ones!",
-            "☕ Coffee is the world's second most traded commodity after oil!",
-            "🎯 Bananas are berries, but strawberries aren't!",
-            "🌈 A rainbow can only be seen if the sun is behind you!",
-            "🦒 Giraffes only need 5-30 minutes of sleep per day!",
-            "📖 The shortest war in history lasted only 38 minutes!",
-            "🎪 The Eiffel Tower can grow up to 6 inches taller in summer due to heat!",
-            "🐌 Snails can sleep for up to 3 years!",
-        ]
-        self.current_fact_index = 0
+        # Sidebar state
+        self.sidebar_visible = True
         
-        # Setup GUI
-        self.setup_gui()
-        
-        # Load sessions after GUI is ready
+        # Thinking indicator
+        self.thinking_animation_id = None
+        self.thinking_frame_index = 0
+
+        # Set favicon
+        self.set_favicon()
+
+        # ============================
+        # Blue Theme Colors
+        # ============================
+        self.colors = {
+            "bg": "#f5f7fb",
+            "chat_bg": "#ffffff",
+            "sidebar": "#182033",
+            "accent": "#2563eb",
+            "accent_hover": "#1e4fc2",
+            "text": "#1f2937",
+            "text_alt": "#6b7280",
+            "bubble_user": "#ffffff",
+            "bubble_bot": "#f3f4f6",
+            "thinking": "#f97316",  # Orange color for thinking
+        }
+
+        # Model config
+        self.current_model = tk.StringVar(value="llama2")
+        self.temperature = tk.DoubleVar(value=0.7)
+
+        # Build UI
+        self.create_top_ticker()
+        self.create_main_layout()
+        self.create_status_bar()
+
+        # Load history + check connection
         self.load_sessions()
-        
-        # Start fun facts ticker
-        self.animate_ticker()
-        
-        # Check Ollama connection
-        self.root.after(100, self.check_ollama_connection)
+        self.check_ollama_connection()
+
+    # ======================================
+    # Favicon Setup
+    # ======================================
+    def set_favicon(self):
+        """Set window icon/favicon"""
+        try:
+            # Try to set icon if iconphoto is available
+            # Create a simple colored square as icon (since we can't use external files)
+            # Tkinter will use default icon if this fails
+            pass
+        except Exception:
+            pass
+
+    # ======================================
+    # Settings Management
+    # ======================================
+    def load_settings(self):
+        if os.path.exists(self.settings_file):
+            try:
+                with open(self.settings_file, "rb") as f:
+                    settings = pickle.load(f)
+                    self.user_avatar = settings.get("user_avatar", "👤")
+                    self.bot_avatar = settings.get("bot_avatar", "🤖")
+            except Exception:
+                pass
     
-    def setup_gui(self):
-        """Setup the main GUI layout"""
-        # Fun facts ticker at the top
-        self.create_ticker()
+    def save_settings(self):
+        try:
+            with open(self.settings_file, "wb") as f:
+                settings = {
+                    "user_avatar": self.user_avatar,
+                    "bot_avatar": self.bot_avatar
+                }
+                pickle.dump(settings, f)
+        except Exception as e:
+            print(f"Error saving settings: {e}")
+
+    # ======================================
+    # Layout setup
+    # ======================================
+    def create_top_ticker(self):
+        ticker_container = tk.Frame(self, bg=self.colors["accent"], height=30)
+        ticker_container.pack(fill=tk.X)
         
-        # Main container with sidebar
-        main_frame = tk.Frame(self.root, bg=self.colors['bg_primary'])
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Left sidebar
-        self.create_sidebar(main_frame)
-        
-        # Right main area
-        right_container = tk.Frame(main_frame, bg=self.colors['bg_primary'])
-        right_container.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
-        
-        # Chat display
-        self.create_chat_display(right_container)
-        
-        # Input area
-        self.create_input_area(right_container)
-        
-        # Settings panel (collapsible)
-        self.create_compact_settings(right_container)
-    
-    def create_ticker(self):
-        """Create animated fun facts ticker"""
-        ticker_frame = tk.Frame(
-            self.root,
-            bg=self.colors['ticker_bg'],
-            height=35
-        )
-        ticker_frame.pack(fill=tk.X, side=tk.TOP)
-        ticker_frame.pack_propagate(False)
-        
-        self.ticker_label = tk.Label(
-            ticker_frame,
-            text="",
-            font=("Arial", 10),
-            bg=self.colors['ticker_bg'],
-            fg=self.colors['ticker_text'],
-            anchor=tk.W
-        )
-        self.ticker_label.pack(fill=tk.BOTH, expand=True, padx=20)
-    
-    def animate_ticker(self):
-        """Animate the fun facts ticker"""
-        fact = self.fun_facts[self.current_fact_index]
-        self.ticker_label.config(text=fact)
-        
-        # Fade effect by changing to next fact
-        self.current_fact_index = (self.current_fact_index + 1) % len(self.fun_facts)
-        
-        # Update every 5 seconds
-        self.root.after(5000, self.animate_ticker)
-    
-    def create_sidebar(self, parent):
-        """Create left sidebar with chat history"""
-        sidebar = tk.Frame(
-            parent,
-            bg=self.colors['sidebar'],
-            width=280
-        )
-        sidebar.pack(side=tk.LEFT, fill=tk.Y)
-        sidebar.pack_propagate(False)
-        
-        # Header
-        header_frame = tk.Frame(sidebar, bg=self.colors['sidebar'])
-        header_frame.pack(fill=tk.X, pady=15, padx=10)
-        
-        # New Chat button
-        new_chat_btn = tk.Button(
-            header_frame,
-            text="+ New Chat",
-            command=self.new_chat,
-            bg=self.colors['sidebar'],
-            fg=self.colors['text_white'],
-            font=("Arial", 11, "bold"),
-            relief=tk.FLAT,
-            cursor="hand2",
-            borderwidth=1,
-            highlightthickness=1,
-            highlightbackground=self.colors['border'],
-            padx=15,
-            pady=10
-        )
-        new_chat_btn.pack(fill=tk.X)
-        new_chat_btn.bind("<Enter>", lambda e: new_chat_btn.configure(bg=self.colors['sidebar_hover']))
-        new_chat_btn.bind("<Leave>", lambda e: new_chat_btn.configure(bg=self.colors['sidebar']))
-        
-        # Separator
-        sep = tk.Frame(sidebar, height=1, bg=self.colors['border'])
-        sep.pack(fill=tk.X, pady=10)
-        
-        # Chat history label
-        tk.Label(
-            sidebar,
-            text="Recent Chats",
-            font=("Arial", 10, "bold"),
-            bg=self.colors['sidebar'],
-            fg=self.colors['text_secondary'],
-            anchor=tk.W
-        ).pack(fill=tk.X, padx=15, pady=(5, 10))
-        
-        # Scrollable chat list
-        canvas_frame = tk.Frame(sidebar, bg=self.colors['sidebar'])
-        canvas_frame.pack(fill=tk.BOTH, expand=True, padx=5)
-        
-        scrollbar = tk.Scrollbar(canvas_frame, bg=self.colors['sidebar'])
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        self.chat_list_canvas = tk.Canvas(
-            canvas_frame,
-            bg=self.colors['sidebar'],
-            highlightthickness=0,
-            yscrollcommand=scrollbar.set
-        )
-        self.chat_list_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.config(command=self.chat_list_canvas.yview)
-        
-        self.chat_list_frame = tk.Frame(self.chat_list_canvas, bg=self.colors['sidebar'])
-        self.chat_list_canvas.create_window((0, 0), window=self.chat_list_frame, anchor=tk.NW)
-        
-        self.chat_list_frame.bind("<Configure>", lambda e: self.chat_list_canvas.configure(
-            scrollregion=self.chat_list_canvas.bbox("all")
-        ))
-        
-        # Footer with version
-        footer = tk.Label(
-            sidebar,
-            text="v3.0 | Ollama AI",
-            font=("Arial", 8),
-            bg=self.colors['sidebar'],
-            fg=self.colors['text_secondary']
-        )
-        footer.pack(side=tk.BOTTOM, pady=10)
-        
-        # Populate chat list
-        self.refresh_chat_list()
-    
-    def refresh_chat_list(self):
-        """Refresh the chat list in sidebar"""
-        # Clear existing
-        for widget in self.chat_list_frame.winfo_children():
-            widget.destroy()
-        
-        # Add chat buttons
-        for session in reversed(self.chat_sessions):  # Most recent first
-            self.create_chat_button(session)
-    
-    def create_chat_button(self, session):
-        """Create a button for a chat session"""
-        is_active = self.current_session and session.id == self.current_session.id
-        
-        btn_frame = tk.Frame(
-            self.chat_list_frame,
-            bg=self.colors['sidebar_hover'] if is_active else self.colors['sidebar']
-        )
-        btn_frame.pack(fill=tk.X, padx=5, pady=2)
-        
-        btn = tk.Button(
-            btn_frame,
-            text=session.name[:30] + "..." if len(session.name) > 30 else session.name,
-            command=lambda: self.load_chat(session.id),
-            bg=self.colors['sidebar_hover'] if is_active else self.colors['sidebar'],
-            fg=self.colors['text_white'],
-            font=("Arial", 10),
-            relief=tk.FLAT,
-            cursor="hand2",
-            anchor=tk.W,
-            padx=10,
-            pady=8
-        )
-        btn.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        if not is_active:
-            btn.bind("<Enter>", lambda e: btn.configure(bg=self.colors['sidebar_hover']))
-            btn.bind("<Leave>", lambda e: btn.configure(bg=self.colors['sidebar']))
-        
-        # Delete button
-        del_btn = tk.Button(
-            btn_frame,
-            text="🗑",
-            command=lambda: self.delete_chat(session.id),
-            bg=self.colors['sidebar_hover'] if is_active else self.colors['sidebar'],
-            fg=self.colors['text_secondary'],
-            font=("Arial", 10),
-            relief=tk.FLAT,
-            cursor="hand2",
-            width=3
-        )
-        del_btn.pack(side=tk.RIGHT)
-        del_btn.bind("<Enter>", lambda e: del_btn.configure(fg="#ff4444"))
-        del_btn.bind("<Leave>", lambda e: del_btn.configure(fg=self.colors['text_secondary']))
-    
-    def create_chat_display(self, parent):
-        """Create the chat display area"""
-        chat_frame = tk.Frame(parent, bg=self.colors['bg_primary'])
-        chat_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-        
-        # Scrollbar
-        scrollbar = tk.Scrollbar(chat_frame)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # Chat display
-        self.chat_display = tk.Text(
-            chat_frame,
-            bg=self.colors['bg_primary'],
-            fg=self.colors['text_primary'],
-            font=("Arial", 11),
-            wrap=tk.WORD,
-            padx=20,
-            pady=20,
-            yscrollcommand=scrollbar.set,
-            state=tk.DISABLED,
-            relief=tk.FLAT,
-            spacing3=15,
-            borderwidth=0
-        )
-        self.chat_display.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.config(command=self.chat_display.yview)
-        
-        # Configure text tags
-        self.chat_display.tag_config(
-            "user",
-            foreground=self.colors['text_primary'],
-            background=self.colors['user_msg'],
-            font=("Arial", 11),
-            spacing1=10,
-            spacing3=10,
-            lmargin1=15,
-            lmargin2=15,
-            rmargin=15,
-            borderwidth=1,
-            relief=tk.SOLID
-        )
-        self.chat_display.tag_config(
-            "bot",
-            foreground=self.colors['text_primary'],
-            background=self.colors['bot_msg'],
-            font=("Arial", 11),
-            spacing1=10,
-            spacing3=10,
-            lmargin1=15,
-            lmargin2=15,
-            rmargin=15
-        )
-        self.chat_display.tag_config(
-            "header",
-            foreground=self.colors['text_secondary'],
-            font=("Arial", 9, "bold")
-        )
-        self.chat_display.tag_config(
-            "system",
-            foreground=self.colors['text_secondary'],
-            font=("Arial", 9, "italic"),
-            justify=tk.CENTER
-        )
-    
-    def create_input_area(self, parent):
-        """Create the message input area"""
-        input_container = tk.Frame(parent, bg=self.colors['bg_primary'])
-        input_container.pack(fill=tk.X, padx=20, pady=(0, 20))
-        
-        # Input frame with border
-        input_frame = tk.Frame(
-            input_container,
-            bg=self.colors['bg_secondary'],
-            relief=tk.SOLID,
-            borderwidth=1,
-            highlightbackground=self.colors['border'],
-            highlightthickness=1
-        )
-        input_frame.pack(fill=tk.X)
-        
-        # Attachment buttons row
-        attach_frame = tk.Frame(input_frame, bg=self.colors['bg_secondary'])
-        attach_frame.pack(fill=tk.X, padx=10, pady=(8, 0))
-        
-        # Attach buttons
-        tk.Button(
-            attach_frame,
-            text="📁 File",
-            command=self.attach_file,
-            bg=self.colors['bg_tertiary'],
-            fg=self.colors['text_primary'],
-            font=("Arial", 9),
-            relief=tk.FLAT,
-            cursor="hand2",
-            padx=10,
-            pady=4
-        ).pack(side=tk.LEFT, padx=2)
-        
-        tk.Button(
-            attach_frame,
-            text="🖼 Image",
-            command=self.attach_image,
-            bg=self.colors['bg_tertiary'],
-            fg=self.colors['text_primary'],
-            font=("Arial", 9),
-            relief=tk.FLAT,
-            cursor="hand2",
-            padx=10,
-            pady=4
-        ).pack(side=tk.LEFT, padx=2)
-        
-        # Attachment preview
-        self.attachment_preview = tk.Label(
-            attach_frame,
-            text="",
-            bg=self.colors['bg_secondary'],
-            fg=self.colors['text_secondary'],
-            font=("Arial", 8)
-        )
-        self.attachment_preview.pack(side=tk.LEFT, padx=10)
-        
-        # Text input with send button
-        text_frame = tk.Frame(input_frame, bg=self.colors['bg_secondary'])
-        text_frame.pack(fill=tk.X, padx=10, pady=8)
-        
-        self.message_input = tk.Text(
-            text_frame,
-            bg=self.colors['bg_secondary'],
-            fg=self.colors['text_primary'],
-            font=("Arial", 11),
-            wrap=tk.WORD,
-            height=3,
-            relief=tk.FLAT,
-            insertbackground=self.colors['accent'],
-            borderwidth=0
-        )
-        self.message_input.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
-        self.message_input.bind("<Return>", self.on_enter_key)
-        self.message_input.bind("<Shift-Return>", lambda e: None)
-        
-        # Send button
-        self.send_button = tk.Button(
-            text_frame,
-            text="→",
-            command=self.send_message,
-            bg=self.colors['accent'],
-            fg=self.colors['text_white'],
-            font=("Arial", 16, "bold"),
+        # Toggle button for sidebar
+        self.toggle_btn = tk.Button(
+            ticker_container,
+            text="☰",
+            command=self.toggle_sidebar,
+            font=("Segoe UI", 14, "bold"),
+            bg=self.colors["accent"],
+            fg="white",
             relief=tk.FLAT,
             cursor="hand2",
             width=3,
             height=1
         )
-        self.send_button.pack(side=tk.RIGHT)
-        self.send_button.bind("<Enter>", lambda e: self.send_button.configure(bg=self.colors['accent_hover']))
-        self.send_button.bind("<Leave>", lambda e: self.send_button.configure(bg=self.colors['accent']))
-    
-    def create_compact_settings(self, parent):
-        """Create compact settings area"""
-        settings_frame = tk.Frame(parent, bg=self.colors['bg_secondary'])
-        settings_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
+        self.toggle_btn.pack(side=tk.LEFT, padx=10)
         
-        # Settings in one row
+        self.ticker_label = tk.Label(
+            ticker_container,
+            text="💡 Ocean waves can travel thousands of miles without losing energy.",
+            bg=self.colors["accent"],
+            fg="white",
+            font=("Segoe UI", 10, "italic"),
+        )
+        self.ticker_label.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
+        self.after(5000, self.update_ticker)
+
+    def update_ticker(self):
+        facts = [
+            "🧠 Your brain uses 20% of your body's energy while being only 2% of its weight.",
+            "🐋 Blue whales are the largest animals ever known to exist.",
+            "🌌 There are more stars than grains of sand on Earth.",
+            "🎵 Music can make plants grow faster!",
+            "🌊 Ocean waves can travel thousands of miles without losing energy.",
+        ]
+        fact = facts[int(datetime.now().second) % len(facts)]
+        self.ticker_label.config(text=f"💡 {fact}")
+        self.after(6000, self.update_ticker)
+
+    def create_main_layout(self):
+        # Main container for sidebar and chat area
+        self.main_container = tk.Frame(self, bg=self.colors["bg"])
+        self.main_container.pack(fill=tk.BOTH, expand=True)
+
+        # Sidebar
+        self.sidebar_frame = tk.Frame(self.main_container, bg=self.colors["sidebar"], width=280)
+        self.sidebar_frame.pack(side=tk.LEFT, fill=tk.Y)
+        self.sidebar_frame.pack_propagate(False)  # Maintain fixed width
+
+        self.create_sidebar(self.sidebar_frame)
+
+        # Chat area
+        self.chat_area = tk.Frame(self.main_container, bg=self.colors["bg"])
+        self.chat_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.create_chat_display(self.chat_area)
+        self.create_input_area(self.chat_area)
+
+    def toggle_sidebar(self):
+        """Toggle sidebar visibility with slide animation"""
+        if self.sidebar_visible:
+            self.sidebar_frame.pack_forget()
+            self.toggle_btn.config(text="☰")
+            self.sidebar_visible = False
+        else:
+            self.sidebar_frame.pack(side=tk.LEFT, fill=tk.Y, before=self.chat_area)
+            self.toggle_btn.config(text="✕")
+            self.sidebar_visible = True
+
+    def create_sidebar(self, parent):
+        # Scrollable container for sidebar content
+        canvas = tk.Canvas(parent, bg=self.colors["sidebar"], highlightthickness=0)
+        scrollbar = tk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg=self.colors["sidebar"])
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Header with app name
         tk.Label(
-            settings_frame,
-            text="Model:",
-            bg=self.colors['bg_secondary'],
-            fg=self.colors['text_secondary'],
-            font=("Arial", 9)
-        ).pack(side=tk.LEFT, padx=(10, 5))
-        
-        models = ["llama2", "llava", "mistral", "codellama", "llama3", "phi"]
-        model_menu = ttk.Combobox(
-            settings_frame,
-            textvariable=self.current_model,
-            values=models,
-            state="readonly",
-            font=("Arial", 9),
-            width=12
-        )
-        model_menu.pack(side=tk.LEFT, padx=5)
-        
-        tk.Label(
-            settings_frame,
-            text="Temp:",
-            bg=self.colors['bg_secondary'],
-            fg=self.colors['text_secondary'],
-            font=("Arial", 9)
-        ).pack(side=tk.LEFT, padx=(20, 5))
-        
-        self.temp_label = tk.Label(
-            settings_frame,
-            text=f"{self.temperature.get():.1f}",
-            bg=self.colors['bg_secondary'],
-            fg=self.colors['text_primary'],
-            font=("Arial", 9, "bold"),
-            width=3
-        )
-        self.temp_label.pack(side=tk.LEFT, padx=2)
-        
-        temp_slider = tk.Scale(
-            settings_frame,
-            from_=0.0,
-            to=2.0,
-            resolution=0.1,
-            orient=tk.HORIZONTAL,
-            variable=self.temperature,
-            bg=self.colors['bg_secondary'],
-            fg=self.colors['text_primary'],
-            troughcolor=self.colors['bg_tertiary'],
-            highlightthickness=0,
-            showvalue=0,
-            command=self.update_temp_label,
-            length=120
-        )
-        temp_slider.pack(side=tk.LEFT, padx=5)
-        
-        # Export button
-        tk.Button(
-            settings_frame,
-            text="Export",
-            command=self.export_chat,
-            bg=self.colors['bg_tertiary'],
-            fg=self.colors['text_primary'],
-            font=("Arial", 9),
+            scrollable_frame,
+            text="Ollama AI Assistant",
+            bg=self.colors["sidebar"],
+            fg="white",
+            font=("Segoe UI", 12, "bold"),
+            pady=20,
+        ).pack()
+
+        # New Chat button
+        new_btn = tk.Button(
+            scrollable_frame,
+            text="🆕  New Chat",
+            command=self.new_chat,
+            font=("Segoe UI", 11, "bold"),
+            fg="white",
+            bg=self.colors["accent"],
             relief=tk.FLAT,
             cursor="hand2",
-            padx=10,
-            pady=4
-        ).pack(side=tk.RIGHT, padx=10)
-        
-        # Connection indicator
-        self.connection_indicator = tk.Label(
-            settings_frame,
-            text="● Checking...",
-            bg=self.colors['bg_secondary'],
-            fg=self.colors['text_secondary'],
-            font=("Arial", 8)
+            height=2,
         )
-        self.connection_indicator.pack(side=tk.RIGHT, padx=10)
-    
-    def update_temp_label(self, value):
-        """Update temperature label"""
-        self.temp_label.config(text=f"{float(value):.1f}")
-    
-    def check_ollama_connection(self):
-        """Check if Ollama is running"""
-        def check():
-            try:
-                response = requests.get("http://localhost:11434/api/tags", timeout=2)
-                if response.status_code == 200:
-                    self.connection_indicator.config(text="● Connected", fg="#2ecc71")
-                else:
-                    self.connection_indicator.config(text="● Error", fg="#e74c3c")
-            except Exception:
-                self.connection_indicator.config(text="● Disconnected", fg="#e74c3c")
+        new_btn.pack(fill=tk.X, padx=20, pady=5)
+
+        # Avatar customization section
+        avatar_section = tk.Frame(scrollable_frame, bg=self.colors["sidebar"])
+        avatar_section.pack(fill=tk.X, padx=20, pady=10)
         
-        threading.Thread(target=check, daemon=True).start()
-    
-    # Chat session management
-    def load_sessions(self):
-        """Load chat sessions from file"""
-        try:
-            if os.path.exists(self.sessions_file):
-                with open(self.sessions_file, 'rb') as f:
-                    data = pickle.load(f)
-                    self.chat_sessions = data
-                    
-                    if self.chat_sessions:
-                        self.current_session = self.chat_sessions[-1]
-        except Exception as e:
-            print(f"Error loading sessions: {e}")
-            self.chat_sessions = []
+        tk.Label(
+            avatar_section,
+            text="Customize",
+            bg=self.colors["sidebar"],
+            fg="#9ca3af",
+            font=("Segoe UI", 9, "bold"),
+            anchor="w"
+        ).pack(fill=tk.X, pady=(0, 5))
         
-        # Create initial session if none exist
-        if not self.chat_sessions:
-            self.new_chat()
-    
-    def save_sessions(self):
-        """Save chat sessions to file"""
-        try:
-            with open(self.sessions_file, 'wb') as f:
-                pickle.dump(self.chat_sessions, f)
-        except Exception as e:
-            print(f"Error saving sessions: {e}")
-    
-    def new_chat(self):
-        """Create a new chat session"""
-        session = ChatSession(name="New Chat")
-        self.chat_sessions.append(session)
-        self.current_session = session
+        # User avatar button
+        self.user_avatar_btn = tk.Button(
+            avatar_section,
+            text=f"{self.user_avatar}  Change Your Avatar",
+            command=self.change_user_avatar,
+            font=("Segoe UI", 10),
+            fg="white",
+            bg="#374151",
+            relief=tk.FLAT,
+            cursor="hand2",
+            anchor="w",
+            padx=10,
+            height=2
+        )
+        self.user_avatar_btn.pack(fill=tk.X, pady=2)
         
-        # Clear display
+        # Bot avatar button
+        self.bot_avatar_btn = tk.Button(
+            avatar_section,
+            text=f"{self.bot_avatar}  Change Bot Avatar",
+            command=self.change_bot_avatar,
+            font=("Segoe UI", 10),
+            fg="white",
+            bg="#374151",
+            relief=tk.FLAT,
+            cursor="hand2",
+            anchor="w",
+            padx=10,
+            height=2
+        )
+        self.bot_avatar_btn.pack(fill=tk.X, pady=2)
+
+        # Chat list
+        tk.Label(
+            scrollable_frame,
+            text="Recent Chats",
+            bg=self.colors["sidebar"],
+            fg="#9ca3af",
+            font=("Segoe UI", 9, "bold"),
+            anchor="w",
+            padx=20
+        ).pack(fill=tk.X, pady=(10, 5))
+        
+        self.chat_list = tk.Frame(scrollable_frame, bg=self.colors["sidebar"])
+        self.chat_list.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.refresh_chat_list()
+
+    def create_chat_display(self, parent):
+        self.chat_display = tk.Text(
+            parent,
+            bg=self.colors["chat_bg"],
+            fg=self.colors["text"],
+            font=("Segoe UI", 11),
+            wrap=tk.WORD,
+            relief=tk.FLAT,
+            padx=20,
+            pady=20,
+            state=tk.DISABLED,
+        )
+        self.chat_display.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 0))
+
+    def create_input_area(self, parent):
+        frame = tk.Frame(parent, bg="#eef2f7")
+        frame.pack(fill=tk.X, padx=15, pady=15)
+
+        # Larger icons
+        attach_frame = tk.Frame(frame, bg="#eef2f7")
+        attach_frame.pack(side=tk.LEFT, padx=10)
+        icon_font = ("Segoe UI Emoji", 16)
+
+        tk.Button(
+            attach_frame,
+            text="📁",
+            command=self.attach_file,
+            font=icon_font,
+            relief=tk.FLAT,
+            bg="#eef2f7",
+            cursor="hand2",
+            width=2,
+        ).pack(side=tk.LEFT, padx=4)
+        tk.Button(
+            attach_frame,
+            text="🖼️",
+            command=self.attach_image,
+            font=icon_font,
+            relief=tk.FLAT,
+            bg="#eef2f7",
+            cursor="hand2",
+            width=2,
+        ).pack(side=tk.LEFT, padx=4)
+
+        # Input box
+        self.input_box = tk.Entry(
+            frame,
+            font=("Segoe UI", 11),
+            bg="white",
+            fg=self.colors["text"],
+            relief=tk.FLAT,
+        )
+        self.input_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, ipady=10, padx=(10, 10))
+        self.input_box.bind("<Return>", self.send_message)
+
+        send_btn = tk.Button(
+            frame,
+            text="⬆️",
+            command=self.send_message,
+            font=icon_font,
+            bg=self.colors["accent"],
+            fg="white",
+            relief=tk.FLAT,
+            cursor="hand2",
+            width=3,
+        )
+        send_btn.pack(side=tk.RIGHT, padx=10)
+
+    def create_status_bar(self):
+        frame = tk.Frame(self, bg=self.colors["bg"], height=30)
+        frame.pack(fill=tk.X, side=tk.BOTTOM)
+        self.status_label = tk.Label(
+            frame,
+            text="Connecting to Ollama...",
+            bg=self.colors["bg"],
+            fg=self.colors["text_alt"],
+            font=("Segoe UI", 9),
+            anchor="w",
+        )
+        self.status_label.pack(fill=tk.X, padx=10)
+
+    # ======================================
+    # Thinking Indicator
+    # ======================================
+    def show_thinking_indicator(self):
+        """Display animated thinking indicator like Claude"""
         self.chat_display.config(state=tk.NORMAL)
-        self.chat_display.delete("1.0", tk.END)
+        
+        # Add spacing
+        self.chat_display.insert(tk.END, "\n")
+        
+        # Insert avatar and label
+        self.chat_display.insert(tk.END, f"{self.bot_avatar}  Assistant\n", "header")
+        
+        # Insert thinking text with marker
+        self.thinking_start = self.chat_display.index("end-1c")
+        self.chat_display.insert(tk.END, "● Thinking...", "thinking")
+        self.chat_display.insert(tk.END, "\n")
+        
+        # Configure thinking style
+        self.chat_display.tag_configure(
+            "thinking",
+            font=("Segoe UI", 11, "italic"),
+            foreground=self.colors["thinking"],
+            lmargin1=55,
+            lmargin2=55,
+            spacing3=15,
+        )
+        
+        self.chat_display.config(state=tk.DISABLED)
+        self.chat_display.see(tk.END)
+        
+        # Start animation
+        self.thinking_frame_index = 0
+        self.animate_thinking()
+    
+    def animate_thinking(self):
+        """Animate the thinking indicator"""
+        if not self.is_generating:
+            return
+        
+        # Animation frames (rotating dots pattern)
+        frames = ["●", "○", "◉", "○"]
+        icon = frames[self.thinking_frame_index % len(frames)]
+        
+        # Update the thinking text
+        self.chat_display.config(state=tk.NORMAL)
+        
+        # Find and replace the thinking indicator
+        try:
+            thinking_line = self.chat_display.search("Thinking...", self.thinking_start, tk.END)
+            if thinking_line:
+                line_start = f"{thinking_line} linestart"
+                line_end = f"{thinking_line} lineend"
+                self.chat_display.delete(line_start, line_end)
+                self.chat_display.insert(line_start, f"{icon} Thinking...", "thinking")
+        except:
+            pass
+        
         self.chat_display.config(state=tk.DISABLED)
         
-        self.save_sessions()
-        self.refresh_chat_list()
+        # Schedule next frame
+        self.thinking_frame_index += 1
+        self.thinking_animation_id = self.after(300, self.animate_thinking)
     
-    def load_chat(self, session_id):
-        """Load a specific chat session"""
-        for session in self.chat_sessions:
-            if session.id == session_id:
-                self.current_session = session
-                self.refresh_chat_list()
+    def hide_thinking_indicator(self):
+        """Remove the thinking indicator"""
+        if self.thinking_animation_id:
+            self.after_cancel(self.thinking_animation_id)
+            self.thinking_animation_id = None
+        
+        self.chat_display.config(state=tk.NORMAL)
+        
+        # Remove the thinking line
+        try:
+            thinking_line = self.chat_display.search("Thinking...", "1.0", tk.END)
+            if thinking_line:
+                # Delete the entire thinking message block (avatar + thinking text)
+                line_start = self.chat_display.search(f"{self.bot_avatar}  Assistant", f"{thinking_line} linestart -3l", thinking_line)
+                if line_start:
+                    end_pos = f"{thinking_line} lineend +1c"
+                    self.chat_display.delete(line_start, end_pos)
+        except:
+            pass
+        
+        self.chat_display.config(state=tk.DISABLED)
+
+    # ======================================
+    # Avatar Management
+    # ======================================
+    def change_user_avatar(self):
+        dialog = AvatarSelectionDialog(self, self.user_avatar)
+        self.wait_window(dialog)
+        if dialog.selected_avatar:
+            self.user_avatar = dialog.selected_avatar
+            self.user_avatar_btn.config(text=f"{self.user_avatar}  Change Your Avatar")
+            self.save_settings()
+            self.refresh_chat_display()
+    
+    def change_bot_avatar(self):
+        dialog = AvatarSelectionDialog(self, self.bot_avatar)
+        self.wait_window(dialog)
+        if dialog.selected_avatar:
+            self.bot_avatar = dialog.selected_avatar
+            self.bot_avatar_btn.config(text=f"{self.bot_avatar}  Change Bot Avatar")
+            self.save_settings()
+            self.refresh_chat_display()
+    
+    def refresh_chat_display(self):
+        """Refresh the current chat display with new avatars"""
+        if self.current_session:
+            self.display_chat_history()
+
+    # ======================================
+    # Core chat logic
+    # ======================================
+    def refresh_chat_list(self):
+        for w in self.chat_list.winfo_children():
+            w.destroy()
+        for s in reversed(self.chat_sessions):
+            tk.Button(
+                self.chat_list,
+                text=f"💬 {s.name[:25]}",
+                bg=self.colors["sidebar"],
+                fg="white",
+                relief=tk.FLAT,
+                anchor="w",
+                command=lambda sid=s.id: self.load_chat(sid),
+            ).pack(fill=tk.X, pady=2)
+
+    def new_chat(self):
+        s = ChatSession()
+        self.chat_sessions.append(s)
+        self.current_session = s
+        self.refresh_chat_list()
+        self.display_message("New chat started.", "assistant")
+
+    def load_chat(self, sid):
+        for s in self.chat_sessions:
+            if s.id == sid:
+                self.current_session = s
                 self.display_chat_history()
                 break
-    
-    def delete_chat(self, session_id):
-        """Delete a chat session"""
-        if messagebox.askyesno("Delete Chat", "Are you sure you want to delete this chat?"):
-            self.chat_sessions = [s for s in self.chat_sessions if s.id != session_id]
-            
-            if self.current_session and self.current_session.id == session_id:
-                if self.chat_sessions:
-                    self.current_session = self.chat_sessions[-1]
-                    self.display_chat_history()
-                else:
-                    self.new_chat()
-            
-            self.save_sessions()
-            self.refresh_chat_list()
-    
+
     def display_chat_history(self):
-        """Display current session's chat history"""
         self.chat_display.config(state=tk.NORMAL)
         self.chat_display.delete("1.0", tk.END)
-        
-        if self.current_session:
-            for msg in self.current_session.messages:
-                role = msg.get("role", "user")
-                content = msg.get("content", "")
-                self.display_message(content, role, add_to_history=False)
-        
+        for msg in self.current_session.messages:
+            self.display_message(msg["content"], msg["role"], add_to_history=False)
         self.chat_display.config(state=tk.DISABLED)
-    
-    # File/Image handling
-    def attach_file(self):
-        """Attach a file"""
-        file_path = filedialog.askopenfilename(
-            title="Select a file",
-            filetypes=[("All Files", "*.*"), ("Text Files", "*.txt"), ("Python Files", "*.py")]
-        )
-        
-        if file_path:
-            try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()[:5000]
-                
-                self.attached_files.append({
-                    'name': os.path.basename(file_path),
-                    'content': content
-                })
-                self.update_attachment_display()
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to read file: {str(e)}")
-    
-    def attach_image(self):
-        """Attach an image"""
-        file_path = filedialog.askopenfilename(
-            title="Select an image",
-            filetypes=[("Image Files", "*.png *.jpg *.jpeg *.gif")]
-        )
-        
-        if file_path:
-            try:
-                with open(file_path, 'rb') as f:
-                    image_data = base64.b64encode(f.read()).decode('utf-8')
-                
-                self.attached_images.append({
-                    'name': os.path.basename(file_path),
-                    'data': image_data
-                })
-                self.current_image_data = image_data
-                self.update_attachment_display()
-                
-                if self.current_model.get() != "llava":
-                    if messagebox.askyesno("Switch Model?", "Switch to 'llava' for image analysis?"):
-                        self.current_model.set("llava")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to read image: {str(e)}")
-    
-    def update_attachment_display(self):
-        """Update attachment preview"""
-        total = len(self.attached_files) + len(self.attached_images)
-        if total > 0:
-            text = f"📎 {len(self.attached_files)} file(s), {len(self.attached_images)} image(s)"
-            self.attachment_preview.config(text=text)
+
+    def display_message(self, msg, role, add_to_history=True):
+        """Display Claude-style left-aligned messages with custom round avatars"""
+        self.chat_display.config(state=tk.NORMAL)
+
+        # Role-based visuals with custom avatars
+        if role == "user":
+            avatar = self.user_avatar
+            label = "You"
+            bg_color = self.colors["chat_bg"]
+            text_color = self.colors["text"]
+        elif role == "assistant":
+            avatar = self.bot_avatar
+            label = "Assistant"
+            bg_color = self.colors["bubble_bot"]
+            text_color = self.colors["text"]
         else:
-            self.attachment_preview.config(text="")
-    
-    def clear_attachments(self):
-        """Clear attachments"""
-        self.attached_files = []
-        self.attached_images = []
-        self.current_image_data = None
-        self.update_attachment_display()
-    
-    # Messaging
-    def on_enter_key(self, event):
-        """Handle Enter key"""
-        if not event.state & 0x1:
-            self.send_message()
-            return "break"
-    
-    def send_message(self):
-        """Send message"""
-        message = self.message_input.get("1.0", tk.END).strip()
+            avatar = "ℹ️"
+            label = "System"
+            bg_color = "#f0f0f0"
+            text_color = self.colors["text_alt"]
+
+        # Add spacing between messages
+        self.chat_display.insert(tk.END, "\n")
         
-        if not message and not self.attached_files and not self.attached_images:
+        # Insert avatar and label on one line
+        self.chat_display.insert(tk.END, f"{avatar}  {label}\n", "header")
+        
+        # Insert message content with proper indentation (left-aligned)
+        self.chat_display.insert(tk.END, f"{msg}\n", f"content_{role}")
+        
+        # Configure header style (avatar + label)
+        self.chat_display.tag_configure(
+            "header",
+            font=("Segoe UI", 10, "bold"),
+            foreground=self.colors["text_alt"],
+            lmargin1=20,
+            lmargin2=20,
+            spacing1=10,
+            spacing3=5,
+        )
+        
+        # Configure content style (message text) - all left-aligned
+        self.chat_display.tag_configure(
+            f"content_{role}",
+            font=("Segoe UI", 11),
+            foreground=text_color,
+            background=bg_color,
+            lmargin1=55,  # Indent to align with text after avatar
+            lmargin2=55,
+            rmargin=20,
+            spacing3=15,
+            wrap="word",
+        )
+
+        self.chat_display.config(state=tk.DISABLED)
+        self.chat_display.see(tk.END)
+
+    def attach_file(self):
+        f = filedialog.askopenfilename()
+        if f:
+            with open(f, "r", errors="ignore") as fp:
+                content = fp.read()[:5000]
+            self.attached_files.append({"name": os.path.basename(f), "content": content})
+            messagebox.showinfo("Attached", f"Attached: {f}")
+
+    def attach_image(self):
+        f = filedialog.askopenfilename(filetypes=[("Images", "*.png;*.jpg;*.jpeg")])
+        if f:
+            with open(f, "rb") as fp:
+                data = base64.b64encode(fp.read()).decode("utf-8")
+            self.attached_images.append({"name": os.path.basename(f), "data": data})
+            messagebox.showinfo("Attached", f"Attached image: {f}")
+
+    def send_message(self, event=None):
+        msg = self.input_box.get().strip()
+        if not msg:
             return
+        self.input_box.delete(0, tk.END)
+        self.display_message(msg, "user")
+        if not self.current_session:
+            self.new_chat()
+        self.current_session.messages.append({"role": "user", "content": msg})
         
-        if self.is_generating:
-            messagebox.showwarning("Wait", "Please wait for current response.")
-            return
-        
-        # Build full message with files
-        full_message = message
-        if self.attached_files:
-            full_message += "\n\n--- Files ---\n"
-            for f in self.attached_files:
-                full_message += f"\n{f['name']}:\n{f['content']}\n"
-        
-        # Clear input
-        self.message_input.delete("1.0", tk.END)
-        
-        # Display user message
-        self.display_message(message, "user")
-        
-        # Add to session
-        msg_obj = {"role": "user", "content": full_message}
-        if self.attached_images and self.current_image_data:
-            msg_obj["images"] = [self.current_image_data]
-        
-        self.current_session.messages.append(msg_obj)
-        
-        # Update chat name if first message
-        if len(self.current_session.messages) == 1:
-            self.current_session.name = message[:40] + "..." if len(message) > 40 else message
-            self.refresh_chat_list()
-        
-        self.current_session.updated_at = datetime.now()
-        self.save_sessions()
-        
-        # Clear attachments
-        self.clear_attachments()
-        
-        # Get response
+        # Show thinking indicator
         self.is_generating = True
-        self.send_button.config(state=tk.DISABLED, text="...")
+        self.show_thinking_indicator()
+        
         threading.Thread(target=self.get_bot_response, daemon=True).start()
-    
+
     def get_bot_response(self):
-        """Get AI response"""
         try:
             payload = {
                 "model": self.current_model.get(),
                 "messages": [{"role": "system", "content": self.system_prompt}] + self.current_session.messages,
                 "stream": False,
-                "options": {"temperature": self.temperature.get()}
+                "options": {"temperature": self.temperature.get()},
             }
+            r = requests.post(self.ollama_url, json=payload, timeout=60)
             
-            response = requests.post(self.ollama_url, json=payload, timeout=120)
-            
-            if response.status_code == 200:
-                result = response.json()
-                bot_message = result.get("message", {}).get("content", "No response")
-                
-                self.current_session.messages.append({"role": "assistant", "content": bot_message})
-                self.current_session.updated_at = datetime.now()
-                self.save_sessions()
-                
-                self.root.after(0, lambda: self.display_message(bot_message, "bot"))
-            else:
-                error = f"Error: {response.status_code}"
-                self.root.after(0, lambda: self.display_message(error, "system"))
-        
-        except Exception as e:
-            error = f"Error: {str(e)}"
-            self.root.after(0, lambda: self.display_message(error, "system"))
-        
-        finally:
+            # Hide thinking indicator
             self.is_generating = False
-            self.root.after(0, lambda: self.send_button.config(state=tk.NORMAL, text="→"))
-    
-    def display_message(self, message, sender, add_to_history=True):
-        """Display a message"""
-        self.chat_display.config(state=tk.NORMAL)
-        
-        if sender == "user":
-            prefix = "You"
-            tag = "user"
-        elif sender == "bot" or sender == "assistant":
-            prefix = "AI Assistant"
-            tag = "bot"
-        else:
-            prefix = "System"
-            tag = "system"
-        
-        self.chat_display.insert(tk.END, "\n")
-        self.chat_display.insert(tk.END, f"{prefix}\n", "header")
-        self.chat_display.insert(tk.END, f"{message}\n", tag)
-        
-        self.chat_display.config(state=tk.DISABLED)
-        self.chat_display.see(tk.END)
-    
-    def export_chat(self):
-        """Export current chat"""
-        if not self.current_session or not self.current_session.messages:
-            messagebox.showinfo("Export", "No chat to export.")
-            return
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"chat_{self.current_session.name[:20]}_{timestamp}.txt"
-        
-        try:
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write(f"Chat Export: {self.current_session.name}\n")
-                f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write("=" * 80 + "\n\n")
-                
-                for msg in self.current_session.messages:
-                    role = msg["role"].upper()
-                    content = msg["content"]
-                    f.write(f"{role}:\n{content}\n\n")
+            self.after(0, self.hide_thinking_indicator)
             
-            messagebox.showinfo("Export Complete", f"Saved to {filename}")
+            if r.status_code == 200:
+                resp = r.json().get("message", {}).get("content", "No response.")
+                self.current_session.messages.append({"role": "assistant", "content": resp})
+                self.after(0, lambda: self.display_message(resp, "assistant"))
+            else:
+                self.after(0, lambda: self.display_message(f"Error {r.status_code}", "system"))
         except Exception as e:
-            messagebox.showerror("Error", f"Export failed: {str(e)}")
+            self.is_generating = False
+            self.after(0, self.hide_thinking_indicator)
+            self.after(0, lambda: self.display_message(str(e), "system"))
 
+    def check_ollama_connection(self):
+        def check():
+            try:
+                r = requests.get("http://localhost:11434/api/tags", timeout=2)
+                if r.status_code == 200:
+                    self.status_label.config(text=f"✅ Connected to Ollama | Model: {self.current_model.get()}")
+                else:
+                    self.status_label.config(text="⚠️ Error connecting to Ollama.")
+            except Exception:
+                self.status_label.config(text="❌ Disconnected.")
+        threading.Thread(target=check, daemon=True).start()
 
-def main():
-    root = tk.Tk()
-    app = OllamaChatbotV3(root)
-    root.mainloop()
+    def load_sessions(self):
+        if os.path.exists(self.sessions_file):
+            try:
+                with open(self.sessions_file, "rb") as f:
+                    self.chat_sessions = pickle.load(f)
+                    if self.chat_sessions:
+                        self.current_session = self.chat_sessions[-1]
+            except Exception:
+                self.chat_sessions = []
+        if not self.chat_sessions:
+            self.new_chat()
 
 
 if __name__ == "__main__":
-    main()
-
+    OllamaChatbotBlue().mainloop()

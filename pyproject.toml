@@ -1,7 +1,7 @@
 [project]
 name = "ollama-chatbot"
-version = "2.0.0"
-description = "A professional chatbot application with file/image upload support, powered by Ollama"
+version = "3.0.0"
+description = "A professional chatbot with ChatGPT-inspired interface, chat history, and file/image support, powered by Ollama"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}

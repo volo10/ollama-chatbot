@@ -2,6 +2,23 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import requests, threading, os, pickle, base64
 from datetime import datetime
+import platform
+
+# ======================================
+# Platform-specific font configuration
+# ======================================
+def get_system_font():
+    """Get the best font for the current platform"""
+    system = platform.system()
+    if system == "Darwin":  # macOS
+        return "SF Pro Text"  # macOS system font
+    elif system == "Windows":
+        return "Segoe UI"  # Windows system font
+    else:  # Linux
+        return "Ubuntu"  # Linux common font
+    
+# Default fallback font
+SYSTEM_FONT = get_system_font()
 
 # ======================================
 # Chat session model
@@ -78,31 +95,45 @@ class AvatarSelectionDialog(tk.Toplevel):
         btn_frame = tk.Frame(self, bg="#2d3748")
         btn_frame.pack(pady=20)
         
-        tk.Button(
+        confirm_btn = tk.Button(
             btn_frame,
             text="Confirm",
             command=self.confirm,
             font=("Segoe UI", 11, "bold"),
-            bg="#2563eb",
-            fg="white",
+            bg="#e5e7eb",
+            fg="#1f2937",
+            activebackground="#d1d5db",
+            activeforeground="#1f2937",
             relief=tk.FLAT,
             cursor="hand2",
             width=12,
-            height=1
-        ).pack(side=tk.LEFT, padx=5)
+            height=1,
+            padx=10,
+            pady=8
+        )
+        confirm_btn.pack(side=tk.LEFT, padx=5)
+        confirm_btn.bind("<Enter>", lambda e: confirm_btn.config(bg="#d1d5db"))
+        confirm_btn.bind("<Leave>", lambda e: confirm_btn.config(bg="#e5e7eb"))
         
-        tk.Button(
+        cancel_btn = tk.Button(
             btn_frame,
             text="Cancel",
             command=self.cancel,
             font=("Segoe UI", 11),
-            bg="#6b7280",
-            fg="white",
+            bg="#e5e7eb",
+            fg="#1f2937",
+            activebackground="#d1d5db",
+            activeforeground="#1f2937",
             relief=tk.FLAT,
             cursor="hand2",
             width=12,
-            height=1
-        ).pack(side=tk.LEFT, padx=5)
+            height=1,
+            padx=10,
+            pady=8
+        )
+        cancel_btn.pack(side=tk.LEFT, padx=5)
+        cancel_btn.bind("<Enter>", lambda e: cancel_btn.config(bg="#d1d5db"))
+        cancel_btn.bind("<Leave>", lambda e: cancel_btn.config(bg="#e5e7eb"))
         
         # Make modal
         self.transient(parent)
@@ -323,23 +354,34 @@ class OllamaChatbotBlue(tk.Tk):
             text="Ollama AI Assistant",
             bg=self.colors["sidebar"],
             fg="white",
-            font=("Segoe UI", 12, "bold"),
+            font=("Segoe UI", 13, "bold"),
             pady=20,
         ).pack()
 
-        # New Chat button
+        # New Chat button with badge
+        new_chat_container = tk.Frame(scrollable_frame, bg=self.colors["sidebar"])
+        new_chat_container.pack(fill=tk.X, padx=20, pady=10)
+        
         new_btn = tk.Button(
-            scrollable_frame,
-            text="🆕  New Chat",
+            new_chat_container,
+            text="🆕  NEW    New Chat",
             command=self.new_chat,
             font=("Segoe UI", 11, "bold"),
-            fg="white",
-            bg=self.colors["accent"],
+            fg="#1f2937",
+            bg="#f3f4f6",
+            activebackground="#e5e7eb",
+            activeforeground="#1f2937",
             relief=tk.FLAT,
             cursor="hand2",
-            height=2,
+            anchor="w",
+            padx=15,
+            pady=12,
         )
-        new_btn.pack(fill=tk.X, padx=20, pady=5)
+        new_btn.pack(fill=tk.X)
+        
+        # Hover effect
+        new_btn.bind("<Enter>", lambda e: new_btn.config(bg="#e5e7eb"))
+        new_btn.bind("<Leave>", lambda e: new_btn.config(bg="#f3f4f6"))
 
         # Avatar customization section
         avatar_section = tk.Frame(scrollable_frame, bg=self.colors["sidebar"])
@@ -349,50 +391,62 @@ class OllamaChatbotBlue(tk.Tk):
             avatar_section,
             text="Customize",
             bg=self.colors["sidebar"],
-            fg="#9ca3af",
-            font=("Segoe UI", 9, "bold"),
+            fg="white",
+            font=("Segoe UI", 10, "bold"),
             anchor="w"
-        ).pack(fill=tk.X, pady=(0, 5))
+        ).pack(fill=tk.X, pady=(0, 8))
         
-        # User avatar button
+        # User avatar button (icon only)
         self.user_avatar_btn = tk.Button(
             avatar_section,
-            text=f"{self.user_avatar}  Change Your Avatar",
+            text=f"{self.user_avatar}  User",
             command=self.change_user_avatar,
-            font=("Segoe UI", 10),
-            fg="white",
-            bg="#374151",
+            font=("Segoe UI", 11),
+            fg="#1f2937",
+            bg="#f3f4f6",
+            activebackground="#e5e7eb",
+            activeforeground="#1f2937",
             relief=tk.FLAT,
             cursor="hand2",
             anchor="w",
-            padx=10,
-            height=2
+            padx=15,
+            pady=10
         )
-        self.user_avatar_btn.pack(fill=tk.X, pady=2)
+        self.user_avatar_btn.pack(fill=tk.X, pady=3)
         
-        # Bot avatar button
+        # Hover effect
+        self.user_avatar_btn.bind("<Enter>", lambda e: self.user_avatar_btn.config(bg="#e5e7eb"))
+        self.user_avatar_btn.bind("<Leave>", lambda e: self.user_avatar_btn.config(bg="#f3f4f6"))
+        
+        # Bot avatar button (icon only)
         self.bot_avatar_btn = tk.Button(
             avatar_section,
-            text=f"{self.bot_avatar}  Change Bot Avatar",
+            text=f"{self.bot_avatar}  Bot",
             command=self.change_bot_avatar,
-            font=("Segoe UI", 10),
-            fg="white",
-            bg="#374151",
+            font=("Segoe UI", 11),
+            fg="#1f2937",
+            bg="#f3f4f6",
+            activebackground="#e5e7eb",
+            activeforeground="#1f2937",
             relief=tk.FLAT,
             cursor="hand2",
             anchor="w",
-            padx=10,
-            height=2
+            padx=15,
+            pady=10
         )
-        self.bot_avatar_btn.pack(fill=tk.X, pady=2)
+        self.bot_avatar_btn.pack(fill=tk.X, pady=3)
+        
+        # Hover effect
+        self.bot_avatar_btn.bind("<Enter>", lambda e: self.bot_avatar_btn.config(bg="#e5e7eb"))
+        self.bot_avatar_btn.bind("<Leave>", lambda e: self.bot_avatar_btn.config(bg="#f3f4f6"))
 
         # Chat list
         tk.Label(
             scrollable_frame,
             text="Recent Chats",
             bg=self.colors["sidebar"],
-            fg="#9ca3af",
-            font=("Segoe UI", 9, "bold"),
+            fg="white",
+            font=("Segoe UI", 10, "bold"),
             anchor="w",
             padx=20
         ).pack(fill=tk.X, pady=(10, 5))
@@ -472,6 +526,8 @@ class OllamaChatbotBlue(tk.Tk):
     def create_status_bar(self):
         frame = tk.Frame(self, bg=self.colors["bg"], height=30)
         frame.pack(fill=tk.X, side=tk.BOTTOM)
+        
+        # Status label on the left
         self.status_label = tk.Label(
             frame,
             text="Connecting to Ollama...",
@@ -480,7 +536,30 @@ class OllamaChatbotBlue(tk.Tk):
             font=("Segoe UI", 9),
             anchor="w",
         )
-        self.status_label.pack(fill=tk.X, padx=10)
+        self.status_label.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
+        
+        # Model selector on the right
+        model_frame = tk.Frame(frame, bg=self.colors["bg"])
+        model_frame.pack(side=tk.RIGHT, padx=10)
+        
+        tk.Label(
+            model_frame,
+            text="Model:",
+            bg=self.colors["bg"],
+            fg=self.colors["text_alt"],
+            font=("Segoe UI", 9)
+        ).pack(side=tk.LEFT, padx=(0, 5))
+        
+        models = ["llama2", "llava", "mistral", "codellama", "llama3", "phi", "gemma"]
+        self.model_selector = ttk.Combobox(
+            model_frame,
+            textvariable=self.current_model,
+            values=models,
+            state="readonly",
+            width=12,
+            font=("Segoe UI", 9)
+        )
+        self.model_selector.pack(side=tk.LEFT)
 
     # ======================================
     # Thinking Indicator
@@ -576,7 +655,11 @@ class OllamaChatbotBlue(tk.Tk):
         self.wait_window(dialog)
         if dialog.selected_avatar:
             self.user_avatar = dialog.selected_avatar
-            self.user_avatar_btn.config(text=f"{self.user_avatar}  Change Your Avatar")
+            try:
+                if self.user_avatar_btn.winfo_exists():
+                    self.user_avatar_btn.config(text=f"{self.user_avatar}  User")
+            except:
+                pass
             self.save_settings()
             self.refresh_chat_display()
     
@@ -585,7 +668,11 @@ class OllamaChatbotBlue(tk.Tk):
         self.wait_window(dialog)
         if dialog.selected_avatar:
             self.bot_avatar = dialog.selected_avatar
-            self.bot_avatar_btn.config(text=f"{self.bot_avatar}  Change Bot Avatar")
+            try:
+                if self.bot_avatar_btn.winfo_exists():
+                    self.bot_avatar_btn.config(text=f"{self.bot_avatar}  Bot")
+            except:
+                pass
             self.save_settings()
             self.refresh_chat_display()
     
@@ -601,15 +688,26 @@ class OllamaChatbotBlue(tk.Tk):
         for w in self.chat_list.winfo_children():
             w.destroy()
         for s in reversed(self.chat_sessions):
-            tk.Button(
+            btn = tk.Button(
                 self.chat_list,
                 text=f"💬 {s.name[:25]}",
-                bg=self.colors["sidebar"],
-                fg="white",
+                bg="#f3f4f6",
+                fg="#1f2937",
+                activebackground="#e5e7eb",
+                activeforeground="#1f2937",
                 relief=tk.FLAT,
                 anchor="w",
+                font=("Segoe UI", 10),
+                padx=10,
+                pady=8,
+                cursor="hand2",
                 command=lambda sid=s.id: self.load_chat(sid),
-            ).pack(fill=tk.X, pady=2)
+            )
+            btn.pack(fill=tk.X, pady=3, padx=5)
+            
+            # Hover effect
+            btn.bind("<Enter>", lambda e, b=btn: b.config(bg="#e5e7eb"))
+            btn.bind("<Leave>", lambda e, b=btn: b.config(bg="#f3f4f6"))
 
     def new_chat(self):
         s = ChatSession()
@@ -690,30 +788,75 @@ class OllamaChatbotBlue(tk.Tk):
         self.chat_display.see(tk.END)
 
     def attach_file(self):
-        f = filedialog.askopenfilename()
+        # Cross-platform file dialog (works on macOS, Windows, Linux)
+        f = filedialog.askopenfilename(
+            title="Select a File",
+            filetypes=[
+                ("Text Files", "*.txt *.md *.py *.js *.html *.css *.json *.xml"),
+                ("Code Files", "*.py *.js *.java *.cpp *.c *.h *.cs *.rb *.go"),
+                ("Documents", "*.pdf *.doc *.docx"),
+                ("All Files", "*.*")
+            ]
+        )
         if f:
             with open(f, "r", errors="ignore") as fp:
                 content = fp.read()[:5000]
             self.attached_files.append({"name": os.path.basename(f), "content": content})
-            messagebox.showinfo("Attached", f"Attached: {f}")
+            messagebox.showinfo("Attached", f"Attached file: {os.path.basename(f)}\n\n📄 Size: {len(content)} characters")
 
     def attach_image(self):
-        f = filedialog.askopenfilename(filetypes=[("Images", "*.png;*.jpg;*.jpeg")])
+        # Cross-platform file dialog (works on macOS, Windows, Linux)
+        # Note: Use space-separated extensions, not semicolons
+        f = filedialog.askopenfilename(
+            title="Select an Image",
+            filetypes=[
+                ("Image Files", "*.png *.jpg *.jpeg *.gif *.bmp"),
+                ("PNG Files", "*.png"),
+                ("JPEG Files", "*.jpg *.jpeg"),
+                ("All Files", "*.*")
+            ]
+        )
         if f:
             with open(f, "rb") as fp:
                 data = base64.b64encode(fp.read()).decode("utf-8")
             self.attached_images.append({"name": os.path.basename(f), "data": data})
-            messagebox.showinfo("Attached", f"Attached image: {f}")
+            
+            # Suggest llava model for image analysis
+            if self.current_model.get() != "llava":
+                response = messagebox.askyesno(
+                    "Switch to Vision Model?",
+                    "For image analysis, 'llava' model is recommended.\n\nSwitch to llava now?"
+                )
+                if response:
+                    self.current_model.set("llava")
+            
+            messagebox.showinfo("Attached", f"Attached image: {os.path.basename(f)}\n\n📷 Total: {len(self.attached_images)} image(s)")
 
     def send_message(self, event=None):
         msg = self.input_box.get().strip()
-        if not msg:
+        if not msg and not self.attached_images:
             return
         self.input_box.delete(0, tk.END)
-        self.display_message(msg, "user")
+        
+        # Build display message
+        display_msg = msg if msg else "Analyzing image..."
+        if self.attached_images:
+            display_msg += f"\n📷 {len(self.attached_images)} image(s) attached"
+        
+        self.display_message(display_msg, "user")
+        
         if not self.current_session:
             self.new_chat()
-        self.current_session.messages.append({"role": "user", "content": msg})
+        
+        # Create message with content and images
+        user_msg = {"role": "user", "content": msg}
+        if self.attached_images:
+            user_msg["images"] = [img["data"] for img in self.attached_images]
+        
+        self.current_session.messages.append(user_msg)
+        
+        # Clear attachments after adding to message
+        self.attached_images = []
         
         # Show thinking indicator
         self.is_generating = True
@@ -729,7 +872,19 @@ class OllamaChatbotBlue(tk.Tk):
                 "stream": False,
                 "options": {"temperature": self.temperature.get()},
             }
-            r = requests.post(self.ollama_url, json=payload, timeout=60)
+            
+            # Debug: Print payload info
+            print(f"\n🔍 DEBUG: Sending request to {self.ollama_url}")
+            print(f"📦 Model: {payload['model']}")
+            print(f"📝 Messages count: {len(payload['messages'])}")
+            for i, msg in enumerate(payload['messages']):
+                has_images = "images" in msg
+                img_count = len(msg.get("images", []))
+                print(f"  Message {i}: role={msg['role']}, has_images={has_images}, image_count={img_count}")
+            
+            r = requests.post(self.ollama_url, json=payload, timeout=120)
+            
+            print(f"✅ Response status: {r.status_code}")
             
             # Hide thinking indicator
             self.is_generating = False
@@ -740,11 +895,16 @@ class OllamaChatbotBlue(tk.Tk):
                 self.current_session.messages.append({"role": "assistant", "content": resp})
                 self.after(0, lambda: self.display_message(resp, "assistant"))
             else:
-                self.after(0, lambda: self.display_message(f"Error {r.status_code}", "system"))
+                error_msg = f"Error {r.status_code}: {r.text}"
+                print(f"❌ {error_msg}")
+                self.after(0, lambda: self.display_message(error_msg, "system"))
         except Exception as e:
+            print(f"❌ Exception: {str(e)}")
+            import traceback
+            traceback.print_exc()
             self.is_generating = False
             self.after(0, self.hide_thinking_indicator)
-            self.after(0, lambda: self.display_message(str(e), "system"))
+            self.after(0, lambda: self.display_message(f"Error: {str(e)}", "system"))
 
     def check_ollama_connection(self):
         def check():

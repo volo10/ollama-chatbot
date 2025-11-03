@@ -6,6 +6,7 @@
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Ollama](https://img.shields.io/badge/Ollama-Required-orange.svg)
 ![Version](https://img.shields.io/badge/Version-3.2-brightgreen.svg)
+![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)
 
 ---
 
@@ -40,6 +41,12 @@
 - Upload and analyze text files
 - Upload and analyze images with vision models
 - Support for code review, document analysis, OCR
+
+#### 🌍 **Cross-Platform Compatible**
+- Works seamlessly on **macOS**, **Windows**, and **Linux**
+- Identical user experience across all platforms
+- Standard tkinter implementation (no platform-specific code)
+- See [CROSS_PLATFORM.md](CROSS_PLATFORM.md) for details
 
 ---
 

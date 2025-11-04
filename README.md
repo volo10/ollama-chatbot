@@ -46,7 +46,31 @@
 - Works seamlessly on **macOS**, **Windows**, and **Linux**
 - Identical user experience across all platforms
 - Standard tkinter implementation (no platform-specific code)
-- See [CROSS_PLATFORM.md](CROSS_PLATFORM.md) for details
+- See [Documentation/CROSS_PLATFORM.md](Documentation/CROSS_PLATFORM.md) for details
+
+---
+
+## 📸 Screenshots
+
+### Main Chat Interface with Fun Facts Ticker
+![Main Chat Interface](screenshots/cmTptpywRz.png)
+*The main chat interface showing a conversation with the AI. Features the **fun facts ticker** at the top displaying rotating trivia, clean message bubbles for user and assistant, and **file/image attachment buttons** at the bottom for uploading content.*
+
+### Sidebar with Chat Management
+![Sidebar Navigation](screenshots/Jk5pETvu2Y.png)
+*The **collapsible sidebar** featuring the "Ollama AI Assistant" header, **NEW Chat button** for creating new conversations, **Customize section** with User and Bot avatar buttons, and the **Recent Chats** list for easy navigation between conversations. The "Thinking..." indicator shows the AI is processing.*
+
+### Complete Conversation View
+![Full Conversation](screenshots/nBzn3hH6iv.png)
+*A complete conversation demonstrating **multi-turn chat capability** with persistent history. The sidebar shows the full chat management interface, while the main area displays a detailed conversation about 90s rock songs, showcasing the AI's ability to provide comprehensive, formatted responses.*
+
+### Avatar Customization Dialog
+![Avatar Selection](screenshots/hzLdkk5L6q.png)
+*The **avatar customization feature** allowing users to personalize their profile with various emoji characters (animals, faces, etc.). The dialog shows a grid of available avatars with the current selection highlighted. The status bar at the bottom displays the **model selector** (llama2) and connection status.*
+
+### Avatar Selection with Highlight
+![Avatar Selection Dialog](screenshots/QzKDcXr5K7.png)
+*Close-up of the avatar selection dialog showing the selected avatar **highlighted in blue**. Users can choose from 12 different emoji avatars to customize both their own profile and the bot's avatar, making the chat experience more personal and engaging.*
 
 ---
 

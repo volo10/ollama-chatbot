@@ -12,6 +12,7 @@ Welcome to the comprehensive documentation for the Ollama Chatbot project!
 - **[YOUR_ACTION_PLAN.md](YOUR_ACTION_PLAN.md)** - Step-by-step action plan
 
 ### 📝 Core Documentation
+- **[PRD.md](PRD.md)** - **Product Requirements Document** (comprehensive specifications)
 - **[DOCUMENTATION.md](DOCUMENTATION.md)** - Complete technical documentation
 - **[PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)** - High-level project summary
 - **[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)** - Project details and structure
@@ -181,6 +182,9 @@ See: **[GIT_PUSH_INSTRUCTIONS.md](GIT_PUSH_INSTRUCTIONS.md)** or **[GIT_PUSH_V3.
 
 **How to rebuild from scratch?**
 → [COMPLETE_PROJECT_PROMPT.md](COMPLETE_PROJECT_PROMPT.md)
+
+**What are the complete product requirements?**
+→ [PRD.md](PRD.md)
 
 ---
 

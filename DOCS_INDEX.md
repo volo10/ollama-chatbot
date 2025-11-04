@@ -12,6 +12,7 @@ All project documentation has been organized in the `Documentation/` directory.
 - **[Documentation/V3_QUICKSTART.md](Documentation/V3_QUICKSTART.md)** - v3.0 quick start
 
 ### 📖 Main Guides
+- **[Documentation/PRD.md](Documentation/PRD.md)** - **Product Requirements Document** (detailed specs)
 - **[Documentation/DOCUMENTATION.md](Documentation/DOCUMENTATION.md)** - Complete technical docs
 - **[Documentation/README.md](Documentation/README.md)** - Documentation directory index
 
@@ -53,6 +54,7 @@ All project documentation has been organized in the `Documentation/` directory.
 | **Mac vs Windows** | [Documentation/PLATFORM_DIFFERENCES.md](Documentation/PLATFORM_DIFFERENCES.md) |
 | **Project History** | [Documentation/USER_PROMPTS_HISTORY.md](Documentation/USER_PROMPTS_HISTORY.md) |
 | **All Features** | [Documentation/VERSION_COMPARISON.md](Documentation/VERSION_COMPARISON.md) |
+| **Product Requirements** | [Documentation/PRD.md](Documentation/PRD.md) |
 
 ---
 

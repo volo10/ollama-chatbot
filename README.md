@@ -73,7 +73,7 @@
 *Close-up of the avatar selection dialog showing the selected avatar **highlighted in blue**. Users can choose from 12 different emoji avatars to customize both their own profile and the bot's avatar, making the chat experience more personal and engaging.*
 
 ### Upload Image
-![Avatar Selection Dialog](screenshots/UploadImage.png)
+![Avatar Selection Dialog](screenshots/UploadImage.jpeg)
 *Analyzing an uploaded image. The user attaches an image, and the AI automatically generates a detailed description of its contents. This feature supports visual understanding tasks such as object recognition, scene analysis, and content explanation, enhancing multimodal interactions within the chat.*
 
 ---

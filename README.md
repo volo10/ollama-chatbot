@@ -72,7 +72,7 @@
 ![Avatar Selection Dialog](screenshots/QzKDcXr5K7.png)
 *Close-up of the avatar selection dialog showing the selected avatar **highlighted in blue**. Users can choose from 12 different emoji avatars to customize both their own profile and the bot's avatar, making the chat experience more personal and engaging.*
 
-### Upload Image
+### New Chat
 ![Avatar Selection Dialog](screenshots/NewChat.jpeg)
 *New conversation. The New Chat button instantly opens a clean session, clearing previous context and allowing users to begin a fresh interaction with the AI. This feature ensures organized, distraction-free dialogue flow and helps users manage multiple independent chat sessions easily.*
 

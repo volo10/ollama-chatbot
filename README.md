@@ -74,14 +74,14 @@
 
 ### Upload Image
 ![Avatar Selection Dialog](screenshots/NewChat.jpeg)
-*Screenshot of the chatbot interface after starting a new conversation. The New Chat button instantly opens a clean session, clearing previous context and allowing users to begin a fresh interaction with the AI. This feature ensures organized, distraction-free dialogue flow and helps users manage multiple independent chat sessions easily.*
+*New conversation. The New Chat button instantly opens a clean session, clearing previous context and allowing users to begin a fresh interaction with the AI. This feature ensures organized, distraction-free dialogue flow and helps users manage multiple independent chat sessions easily.*
 
 ### Upload Image
 ![Avatar Selection Dialog](screenshots/UploadImage.jpeg)
 *Analyzing an uploaded image. The user attaches an image, and the AI automatically generates a detailed description of its contents. This feature supports visual understanding tasks such as object recognition, scene analysis, and content explanation, enhancing multimodal interactions within the chat.*
 
 Original Image:
-![Avatar Selection Dialog](screenshots/Surf.jpeg)
+![Avatar Selection Dialog](screenshots/Surf.png)
 
 
 ---
